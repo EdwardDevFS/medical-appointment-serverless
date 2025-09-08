@@ -9,11 +9,19 @@ process.env.RDS_USER = process.env.RDS_USER || 'test';
 process.env.RDS_PASSWORD = process.env.RDS_PASSWORD || 'test';
 process.env.RDS_DATABASE = process.env.RDS_DATABASE || 'test_db';
 
-jest.mock('@aws-sdk/client-dynamodb');
 jest.mock('@aws-sdk/lib-dynamodb');
-jest.mock('@aws-sdk/client-sns');
-jest.mock('@aws-sdk/client-eventbridge');
-
+jest.mock('@aws-sdk/client-dynamodb', () => ({
+  DynamoDBClient: jest.fn(),
+  DynamoDBDocumentClient: jest.fn(),
+}));
+jest.mock('@aws-sdk/client-sns', () => ({
+  SNSClient: jest.fn(),
+  PublishCommand: jest.fn(),
+}));
+jest.mock('@aws-sdk/client-eventbridge', () => ({
+  EventBridgeClient: jest.fn(),
+  PutEventsCommand: jest.fn(),
+}));
 jest.mock('mysql2/promise');
 
 jest.setTimeout(10000);
