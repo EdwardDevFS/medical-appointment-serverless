@@ -1,0 +1,325 @@
+openapi: 3.0.3
+info:
+  title: Medical Appointment Backend API
+  description: |
+    Sistema de agendamiento de citas médicas para asegurados.
+    
+    **Flujo del Sistema:**
+    1. POST /appointments - Crea una nueva cita médica (estado 'pending')
+    2. El sistema procesa la cita por país (PE o CL) vía SNS/SQS
+    3. Se guarda en base de datos RDS del país correspondiente
+    4. EventBridge confirma el agendamiento
+    5. Se actualiza el estado a 'completed' en DynamoDB
+    
+    **Arquitectura:**
+    - API Gateway + Lambda
+    - DynamoDB para estado de citas
+    - SNS/SQS para procesamiento por país
+    - EventBridge para confirmaciones
+    - RDS MySQL para persistencia por país
+  version: 1.0.0
+  contact:
+    name: Backend Developer
+    email: developer@company.com
+
+servers:
+  - url: https://api.medical-appointments.com/dev
+    description: Development server
+  - url: https://api.medical-appointments.com/prod
+    description: Production server
+
+paths:
+  /appointments:
+    post:
+      summary: Crear nueva cita médica
+      description: |
+        Registra una nueva solicitud de cita médica. El agendamiento se procesa
+        de forma asíncrona y el estado inicial será 'pending'.
+      operationId: createAppointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+            examples:
+              peru_appointment:
+                summary: Cita en Perú
+                value:
+                  insuredId: "00001"
+                  scheduleId: 100
+                  countryISO: "PE"
+                  centerId: 4
+                  specialtyId: 3
+                  medicId: 4
+                  date: "2024-09-30T12:30:00Z"
+              chile_appointment:
+                summary: Cita en Chile
+                value:
+                  insuredId: "12345"
+                  scheduleId: 200
+                  countryISO: "CL"
+                  centerId: 8
+                  specialtyId: 7
+                  medicId: 15
+                  date: "2024-10-01T14:00:00Z"
+      responses:
+        '202':
+          description: Cita médica en proceso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAppointmentResponse'
+              example:
+                message: "agendamiento en proceso"
+                appointment:
+                  insuredId: "00001"
+                  scheduleId: 100
+                  countryISO: "PE"
+                  status: "pending"
+                  createdAt: "2024-09-07T10:30:00Z"
+        '400':
+          description: Datos de entrada inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_fields:
+                  summary: Campos requeridos faltantes
+                  value:
+                    error: "Missing required fields: insuredId, scheduleId, countryISO"
+                invalid_insured_id:
+                  summary: Formato de insuredId inválido
+                  value:
+                    error: "insuredId must be 5 digits"
+                invalid_country:
+                  summary: País inválido
+                  value:
+                    error: "countryISO must be PE or CL"
+        '500':
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /appointments/{insuredId}:
+    get:
+      summary: Obtener citas por asegurado
+      description: |
+        Retorna todas las citas médicas asociadas a un asegurado específico,
+        incluyendo el estado actual de cada cita.
+      operationId: getAppointmentsByInsuredId
+      parameters:
+        - name: insuredId
+          in: path
+          required: true
+          description: Código del asegurado (5 dígitos)
+          schema:
+            type: string
+            pattern: '^\d{5}$'
+            example: "00001"
+      responses:
+        '200':
+          description: Lista de citas del asegurado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentsListResponse'
+              example:
+                insuredId: "00001"
+                appointments:
+                  - scheduleId: 100
+                    countryISO: "PE"
+                    status: "completed"
+                    centerId: 4
+                    specialtyId: 3
+                    medicId: 4
+                    date: "2024-09-30T12:30:00Z"
+                    createdAt: "2024-09-07T10:30:00Z"
+                    updatedAt: "2024-09-07T10:35:00Z"
+                  - scheduleId: 150
+                    countryISO: "PE"
+                    status: "pending"
+                    centerId: 5
+                    specialtyId: 2
+                    medicId: 8
+                    date: "2024-10-02T09:00:00Z"
+                    createdAt: "2024-09-07T11:00:00Z"
+        '400':
+          description: Parámetro inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "insuredId must be 5 digits"
+        '404':
+          description: No se encontraron citas para el asegurado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentsListResponse'
+              example:
+                insuredId: "99999"
+                appointments: []
+        '500':
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateAppointmentRequest:
+      type: object
+      required:
+        - insuredId
+        - scheduleId
+        - countryISO
+      properties:
+        insuredId:
+          type: string
+          pattern: '^\d{5}
+          description: Código del asegurado (5 dígitos, puede tener ceros adelante)
+          example: "00001"
+        scheduleId:
+          type: integer
+          description: Identificador único del espacio de agendamiento
+          example: 100
+        countryISO:
+          type: string
+          enum: ["PE", "CL"]
+          description: Código ISO del país (solo Perú o Chile)
+          example: "PE"
+        centerId:
+          type: integer
+          nullable: true
+          description: ID del centro médico
+          example: 4
+        specialtyId:
+          type: integer
+          nullable: true
+          description: ID de la especialidad médica
+          example: 3
+        medicId:
+          type: integer
+          nullable: true
+          description: ID del médico
+          example: 4
+        date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha y hora de la cita en formato ISO
+          example: "2024-09-30T12:30:00Z"
+
+    CreateAppointmentResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "agendamiento en proceso"
+        appointment:
+          $ref: '#/components/schemas/AppointmentSummary'
+
+    AppointmentSummary:
+      type: object
+      properties:
+        insuredId:
+          type: string
+          example: "00001"
+        scheduleId:
+          type: integer
+          example: 100
+        countryISO:
+          type: string
+          example: "PE"
+        status:
+          type: string
+          enum: ["pending", "completed"]
+          example: "pending"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-09-07T10:30:00Z"
+
+    AppointmentsListResponse:
+      type: object
+      properties:
+        insuredId:
+          type: string
+          example: "00001"
+        appointments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppointmentDetail'
+
+    AppointmentDetail:
+      type: object
+      properties:
+        scheduleId:
+          type: integer
+          example: 100
+        countryISO:
+          type: string
+          enum: ["PE", "CL"]
+          example: "PE"
+        status:
+          type: string
+          enum: ["pending", "completed"]
+          example: "completed"
+        centerId:
+          type: integer
+          nullable: true
+          example: 4
+        specialtyId:
+          type: integer
+          nullable: true
+          example: 3
+        medicId:
+          type: integer
+          nullable: true
+          example: 4
+        date:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2024-09-30T12:30:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-09-07T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2024-09-07T10:35:00Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Descripción del error
+          example: "Invalid request parameters"
+        message:
+          type: string
+          description: Mensaje de error detallado
+          example: "insuredId must be 5 digits"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key para autenticación
+
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: appointments
+    description: Operaciones relacionadas con citas médicas
