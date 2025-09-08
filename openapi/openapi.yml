@@ -182,7 +182,7 @@ components:
       properties:
         insuredId:
           type: string
-          pattern: '^\d{5}
+          pattern: '^\d{5}$'
           description: Código del asegurado (5 dígitos, puede tener ceros adelante)
           example: "00001"
         scheduleId:
@@ -223,43 +223,14 @@ components:
           type: string
           example: "agendamiento en proceso"
         appointment:
-          $ref: '#/components/schemas/AppointmentSummary'
-
-    AppointmentSummary:
-      type: object
-      properties:
-        insuredId:
-          type: string
-          example: "00001"
-        scheduleId:
-          type: integer
-          example: 100
-        countryISO:
-          type: string
-          example: "PE"
-        status:
-          type: string
-          enum: ["pending", "completed"]
-          example: "pending"
-        createdAt:
-          type: string
-          format: date-time
-          example: "2024-09-07T10:30:00Z"
-
-    AppointmentsListResponse:
-      type: object
-      properties:
-        insuredId:
-          type: string
-          example: "00001"
-        appointments:
-          type: array
-          items:
-            $ref: '#/components/schemas/AppointmentDetail'
+          $ref: '#/components/schemas/AppointmentDetail'
 
     AppointmentDetail:
       type: object
       properties:
+        insuredId:
+          type: string
+          example: "00001"
         scheduleId:
           type: integer
           example: 100
@@ -297,6 +268,17 @@ components:
           format: date-time
           nullable: true
           example: "2024-09-07T10:35:00Z"
+
+    AppointmentsListResponse:
+      type: object
+      properties:
+        insuredId:
+          type: string
+          example: "00001"
+        appointments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppointmentDetail'
 
     ErrorResponse:
       type: object

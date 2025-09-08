@@ -28,20 +28,17 @@ provider:
             - dynamodb:GetItem
           Resource:
             - Fn::GetAtt: [AppointmentsDynamoTable, Arn]
-
         - Effect: "Allow"
           Action:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
           Resource: "arn:aws:logs:${self:provider.region}:*:*"
-
         - Effect: "Allow"
           Action:
             - sns:Publish
           Resource:
             Ref: AppointmentTopic
-
         - Effect: "Allow"
           Action:
             - sqs:SendMessage
@@ -52,7 +49,6 @@ provider:
             - Fn::GetAtt: [SqsPe, Arn]
             - Fn::GetAtt: [SqsCl, Arn]
             - Fn::GetAtt: [AppointmentConfirmationsQueue, Arn]
-
         - Effect: "Allow"
           Action:
             - events:PutEvents
@@ -83,7 +79,7 @@ custom:
 
 functions:
   appointment:
-    handler: src/interfaces/http/appointmentHandler.handler
+    handler: .webpack/appointmentHandler.handler
     events:
       - httpApi:
           path: /appointments
@@ -91,25 +87,22 @@ functions:
       - httpApi:
           path: /appointments/{insuredId}
           method: get
-
   appointmentPe:
-    handler: src/interfaces/sqs/appointmentPeHandler.handler
+    handler: .webpack/appointmentPeHandler.handler
     events:
       - sqs:
           arn:
             Fn::GetAtt: [SqsPe, Arn]
           batchSize: 1
-
-  appointmentCl: 
-    handler: src/interfaces/sqs/appointmentClHandler.handler
+  appointmentCl:
+    handler: .webpack/appointmentClHandler.handler
     events:
       - sqs:
           arn:
             Fn::GetAtt: [SqsCl, Arn]
           batchSize: 1
-
-  confirmationProcessor: 
-    handler: src/interfaces/confirmation/confirmationHandler.handler
+  confirmationProcessor:
+    handler: .webpack/confirmationHandler.handler
     events:
       - sqs:
           arn:
@@ -134,33 +127,28 @@ resources:
           - AttributeName: scheduleId
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
-
     # SNS Topic
     AppointmentTopic:
       Type: AWS::SNS::Topic
       Properties:
         TopicName: appointment-topic-${opt:stage, 'dev'}
-
     # SQS Queues
     SqsPe:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: SQS_PE-${opt:stage, 'dev'}
-
     SqsCl:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: SQS_CL-${opt:stage, 'dev'}
-
     AppointmentConfirmationsQueue:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: appointment-confirmations-${opt:stage, 'dev'}.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
-
     # SNS Subscriptions
-    SnsSubscriptionPe: 
+    SnsSubscriptionPe:
       Type: AWS::SNS::Subscription
       Properties:
         TopicArn:
@@ -171,7 +159,6 @@ resources:
         FilterPolicy:
           countryISO: ["PE"]
         RawMessageDelivery: true
-
     SnsSubscriptionCl:
       Type: AWS::SNS::Subscription
       Properties:
@@ -183,13 +170,11 @@ resources:
         FilterPolicy:
           countryISO: ["CL"]
         RawMessageDelivery: true
-
     # EventBridge
     AppointmentEventBus:
       Type: AWS::Events::EventBus
       Properties:
         Name: appointment-event-bus-${opt:stage, 'dev'}
-
     AppointmentConfirmedRule:
       Type: AWS::Events::Rule
       Properties:
@@ -205,12 +190,10 @@ resources:
           - Arn:
               Fn::GetAtt: [AppointmentConfirmationsQueue, Arn]
             Id: ConfirmationTarget
-            # Para FIFO Queue, MessageGroupId es obligatorio
             SqsParameters:
               MessageGroupId: "appointment-confirmations"
-
     # Queue Policies
-    ConfirmationQueuePolicy:  
+    ConfirmationQueuePolicy:
       Type: AWS::SQS::QueuePolicy
       Properties:
         Queues:
@@ -227,8 +210,7 @@ resources:
                 ArnEquals:
                   "aws:SourceArn":
                     Fn::GetAtt: [AppointmentConfirmedRule, Arn]
-
-    SqsPePolicy: 
+    SqsPePolicy:
       Type: AWS::SQS::QueuePolicy
       Properties:
         Queues:
@@ -245,8 +227,7 @@ resources:
                 ArnEquals:
                   "aws:SourceArn":
                     Ref: AppointmentTopic
-
-    SqsClPolicy: 
+    SqsClPolicy:
       Type: AWS::SQS::QueuePolicy
       Properties:
         Queues:

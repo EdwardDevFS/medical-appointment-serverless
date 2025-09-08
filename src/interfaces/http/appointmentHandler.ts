@@ -2,13 +2,14 @@ import { DynamoAppointmentRepository } from "../../infrastructure/dynamo/reposit
 import { SnsEventPublisher } from "../../infrastructure/sns/SnsEventPublisher";
 import { CreateAppointmentCommand } from "../../application/appointment/commands/CreateAppointmentCommand";
 import { GetAppointmentsByInsuredIdQuery } from "../../application/appointment/queries/GetAppointmentsByInsuredIdQuery";
+import { APIGatewayProxyHandler } from "aws-lambda";
 
 const repo = new DynamoAppointmentRepository();
 const publisher = new SnsEventPublisher();
 const createAppointment = new CreateAppointmentCommand(repo, publisher);
 const getAppointments = new GetAppointmentsByInsuredIdQuery(repo);
 
-export const handler = async (event: any) => {
+export const handler: APIGatewayProxyHandler = async (event: any) => {
   console.log("Appointment handler received event:", JSON.stringify(event, null, 2));
   
   try {

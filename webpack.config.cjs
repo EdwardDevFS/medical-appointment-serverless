@@ -1,17 +1,14 @@
 const path = require("path");
-const glob = require("glob");
-
-const handlers = glob.sync("./src/interfaces/**/*Handler.ts").reduce((acc, file) => {
-  // extraemos la ruta sin extensión
-  const name = file.replace("./src/interfaces/", "").replace(/\.ts$/, "");
-  acc[name] = file;
-  return acc;
-}, {});
 
 module.exports = {
   target: "node",
   mode: "production",
-  entry: handlers,
+  entry: {
+    appointmentHandler: "./src/interfaces/http/appointmentHandler.ts",
+    appointmentPeHandler: "./src/interfaces/sqs/appointmentPeHandler.ts",
+    appointmentClHandler: "./src/interfaces/sqs/appointmentClHandler.ts",
+    confirmationHandler: "./src/interfaces/confirmation/confirmationHandler.ts",
+  },
   module: {
     rules: [
       {

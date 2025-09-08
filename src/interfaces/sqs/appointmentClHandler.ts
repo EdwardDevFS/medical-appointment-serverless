@@ -1,4 +1,4 @@
-import { SQSEvent } from "aws-lambda";
+import { SQSEvent, SQSHandler } from "aws-lambda";
 import { DynamoAppointmentRepository } from "../../infrastructure/dynamo/repositories/DynamoAppointmentRepository";
 import { RdsAppointmentRepository } from "../../infrastructure/rds/repositories/RdsAppointmentRepository";
 import { EventBridgePublisher } from "../../infrastructure/eventbridge/EventBridgePublisher";
@@ -9,7 +9,7 @@ const rdsRepo = new RdsAppointmentRepository();
 const publisher = new EventBridgePublisher();
 const processCommand = new ProcessCountryAppointmentCommand(dynamoRepo, rdsRepo, publisher);
 
-export const handler = async (event: SQSEvent) => {
+export const handler: SQSHandler = async (event: SQSEvent) => {
   for (const record of event.Records) {
     try {
       const payload = JSON.parse(record.body);
@@ -20,5 +20,4 @@ export const handler = async (event: SQSEvent) => {
       console.error("Error in CL handler:", error);
     }
   }
-  return {};
 };
